@@ -1025,11 +1025,12 @@ class DefaultExecutionPlanParallelTest extends AbstractExecutionPlanSpec {
 
     private void addToGraphAndPopulate(Task... tasks) {
         addToGraph(tasks)
-        executionPlan.determineExecutionPlan()
+        populateGraph()
     }
 
     private void populateGraph() {
         executionPlan.determineExecutionPlan()
+        executionPlan.finalizePlan()
     }
 
     TestFile file(String path) {

@@ -207,7 +207,7 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
                 // Make sure it has been configured
                 node.prepareForExecution(this::monitoredNodeReady);
                 node.resolveDependencies(dependencyResolver);
-                for (Node successor : node.getAllSuccessorsInReverseOrder()) {
+                for (Node successor : node.getDependencySuccessorsInReverseOrder()) {
                     if (!visiting.contains(successor)) {
                         queue.addFirst(successor);
                     }
@@ -253,6 +253,10 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
             Node node = nodeInVisitingSegment.node;
 
             if (node.isDoNotIncludeInPlan() || nodeMapping.contains(node)) {
+                // Discard the node because it has already been visited or should not be included, for example:
+                // - it has already executed in another execution plan
+                // - it is reachable only via a must-run-after or should-run-after edge
+                // - it is filtered
                 nodeQueue.removeFirst();
                 visitingNodes.remove(node, currentSegment);
                 maybeRemoveProcessedShouldRunAfterEdge(walkedShouldRunAfterEdges, node);

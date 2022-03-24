@@ -897,7 +897,7 @@ class DefaultExecutionPlanTest extends AbstractExecutionPlanSpec {
         executionPlan.addNodes([node3, node1, node2])
 
         when:
-        executionPlan.determineExecutionPlan()
+        populateGraph()
 
         then:
         executesNodes(node1, node2, node3)
@@ -985,6 +985,7 @@ class DefaultExecutionPlanTest extends AbstractExecutionPlanSpec {
 
     private void populateGraph() {
         executionPlan.determineExecutionPlan()
+        executionPlan.finalizePlan()
     }
 
     void executes(Task... expectedTasks) {

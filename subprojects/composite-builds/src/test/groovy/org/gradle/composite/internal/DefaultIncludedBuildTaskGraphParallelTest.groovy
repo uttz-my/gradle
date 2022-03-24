@@ -147,7 +147,7 @@ class DefaultIncludedBuildTaskGraphParallelTest extends AbstractIncludedBuildTas
         }
         _ * controller.executeTasks(_) >> {
             plan.determineExecutionPlan()
-            return services.planExecutor.process(plan) { node -> }
+            return services.planExecutor.process(plan.finalizePlan()) { node -> }
         }
 
         return new DefaultBuildWorkGraphController(

@@ -241,6 +241,10 @@ public abstract class Node implements Comparable<Node> {
         return dependencySuccessors;
     }
 
+    public Iterable<Node> getDependencySuccessorsInReverseOrder() {
+        return dependencySuccessors.descendingSet();
+    }
+
     public void addDependencySuccessor(Node toNode) {
         dependencySuccessors.add(toNode);
         toNode.getDependencyPredecessors().add(this);
