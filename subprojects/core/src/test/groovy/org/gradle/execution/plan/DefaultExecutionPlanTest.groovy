@@ -726,7 +726,7 @@ class DefaultExecutionPlanTest extends AbstractExecutionPlanSpec {
         final Task c = task("c")
         final Task d = task("d", dependsOn: [b, c])
         addToGraphAndPopulate([b])
-        executedTasks == [a]
+        assert executedTasks == [a]
 
         when:
         executionPlan = newExecutionPlan()
@@ -734,7 +734,7 @@ class DefaultExecutionPlanTest extends AbstractExecutionPlanSpec {
         executionPlan.setContinueOnFailure(true)
 
         then:
-        executionPlan.tasks as List == [c, d]
+        executionPlan.tasks as List == [b, c, d]
         executedTasks == [c]
 
         when:
@@ -843,14 +843,14 @@ class DefaultExecutionPlanTest extends AbstractExecutionPlanSpec {
         Task b = task("b", dependsOn: [a])
         Task c = task("c", dependsOn: [b])
         addToGraphAndPopulate([b])
-        executedTasks == [a]
+        assert executedTasks == [a]
 
         when:
         executionPlan = newExecutionPlan()
         addToGraphAndPopulate([c])
 
         then:
-        executionPlan.tasks as List == [c]
+        executionPlan.tasks as List == [b, c]
         executedTasks == []
     }
 

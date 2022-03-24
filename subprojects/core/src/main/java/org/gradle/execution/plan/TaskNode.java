@@ -43,22 +43,38 @@ public abstract class TaskNode extends Node {
         if (!super.doCheckDependenciesComplete()) {
             return false;
         }
-        LOGGER.debug("Checking if all must successors are complete for {}", this);
+
         for (Node dependency : mustSuccessors) {
             if (!dependency.isComplete()) {
                 return false;
             }
         }
 
-        LOGGER.debug("Checking if all finalizing successors are complete for {}", this);
-        for (Node dependency : finalizingSuccessors) {
-            if (!dependency.isComplete()) {
+        for (Node finalized : finalizingSuccessors) {
+            if (!finalized.isComplete()) {
                 return false;
             }
         }
 
-        LOGGER.debug("All task dependencies are complete for {}", this);
         return true;
+    }
+
+    @Override
+    public boolean allDependenciesSuccessful() {
+        if (!super.allDependenciesSuccessful()) {
+            return false;
+        }
+        if (finalizingSuccessors.isEmpty()) {
+            return true;
+        }
+
+        // If any finalized node has executed, then this node can execute
+        for (Node finalized : finalizingSuccessors) {
+            if (finalized.isExecuted()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public Set<Node> getMustSuccessors() {

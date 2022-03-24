@@ -79,6 +79,7 @@ class DefaultExecutionPlanParallelTest extends AbstractExecutionPlanSpec {
         Task task = task("d", type: Async, dependsOn: [broken], finalizedBy: [finalizer])
 
         when:
+        executionPlan.setContinueOnFailure(continueOnFailure)
         addToGraphAndPopulate(task)
         def node1 = selectNextTaskNode()
 
@@ -90,7 +91,14 @@ class DefaultExecutionPlanParallelTest extends AbstractExecutionPlanSpec {
         finishedExecuting(node1)
 
         then:
-        assertAllWorkComplete()
+        if (continueOnFailure) {
+            assertAllWorkCompleteAfterSelect()
+        } else {
+            assertAllWorkComplete()
+        }
+
+        where:
+        continueOnFailure << [false, true]
     }
 
     def "finalizer tasks are executed on task failure but dependents of failed task are not"() {
@@ -100,6 +108,7 @@ class DefaultExecutionPlanParallelTest extends AbstractExecutionPlanSpec {
         Task task = task("d", dependsOn: [broken])
 
         when:
+        executionPlan.setContinueOnFailure(continueOnFailure)
         addToGraphAndPopulate(task)
 
         def node1 = selectNextTaskNode()
@@ -129,6 +138,9 @@ class DefaultExecutionPlanParallelTest extends AbstractExecutionPlanSpec {
 
         then:
         assertAllWorkComplete()
+
+        where:
+        continueOnFailure << [false, true]
     }
 
     def "task and finalizer are not executed when unrelated finalized task fails"() {
@@ -156,6 +168,53 @@ class DefaultExecutionPlanParallelTest extends AbstractExecutionPlanSpec {
 
         when:
         finishedExecuting(node2)
+
+        then:
+        assertAllWorkComplete()
+    }
+
+    def "task and finalizer are executed when unrelated finalized task fails and continue on failure"() {
+        Task finalizer1 = task("a")
+        Task broken = task("b", finalizedBy: [finalizer1], failure: new RuntimeException())
+        Task finalizer2 = task("c")
+        Task unrelated = task("d", finalizedBy: [finalizer2])
+
+        when:
+        executionPlan.setContinueOnFailure(true)
+        addToGraphAndPopulate(broken, unrelated)
+
+        def node1 = selectNextTaskNode()
+
+        then:
+        node1.task == broken
+        assertNoWorkReadyToStartAfterSelect()
+
+        when:
+        finishedExecuting(node1)
+        def node2 = selectNextTaskNode()
+
+        then:
+        node2.task == finalizer1
+        assertNoWorkReadyToStartAfterSelect()
+
+        when:
+        finishedExecuting(node2)
+        def node3 = selectNextTaskNode()
+
+        then:
+        node3.task == unrelated
+        assertNoWorkReadyToStartAfterSelect()
+
+        when:
+        finishedExecuting(node3)
+        def node4 = selectNextTaskNode()
+
+        then:
+        node4.task == finalizer2
+        assertNoMoreWorkToStartButNotAllComplete()
+
+        when:
+        finishedExecuting(node4)
 
         then:
         assertAllWorkComplete()
@@ -845,44 +904,6 @@ class DefaultExecutionPlanParallelTest extends AbstractExecutionPlanSpec {
         then:
         assertNoMoreWorkToStartButNotAllComplete()
         node4.task == mustRunAfter
-    }
-
-    def "must run after is sometimes respected for finalizers"() {
-        Task dependency = task("dependency", type: Async)
-        Task finalizer = task("finalizer", type: Async)
-        Task finalized = task("finalized", type: Async, dependsOn: [dependency], finalizedBy: [finalizer])
-        Task mustRunAfter = task("mustRunAfter", type: Async, mustRunAfter: [finalizer])
-
-        when:
-        addToGraph(finalized)
-        addToGraph(mustRunAfter)
-        populateGraph()
-
-        and:
-        def dependencyNode = selectNextTaskNode()
-        then:
-        dependencyNode.task == dependency
-
-        when:
-        finishedExecuting(dependencyNode)
-
-        def finalizedNode = selectNextTaskNode()
-        then:
-        finalizedNode.task == finalized
-
-        when:
-        finishedExecuting(finalizedNode)
-
-        def finalizerNode = selectNextTaskNode()
-        then:
-        assertNoWorkReadyToStartAfterSelect()
-        finalizerNode.task == finalizer
-
-        when:
-        finishedExecuting(finalizerNode)
-        then:
-        selectNextTask() == mustRunAfter
-        assertNoMoreWorkToStartButNotAllComplete()
     }
 
     def "handles an exception while walking the task graph when an enforced task is present"() {

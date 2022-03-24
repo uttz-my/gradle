@@ -143,12 +143,13 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
 
     @Override
     public void addNodes(Collection<? extends Node> nodes) {
-        Deque<Node> queue = new ArrayDeque<>(nodes);
+        Deque<Node> queue = new ArrayDeque<>(nodes.size());
         for (Node node : nodes) {
             assert node.getDependenciesProcessed() || node instanceof TaskInAnotherBuild;
             assert node.isInKnownState();
             if (node.isRequired()) {
                 entryNodes.add(node);
+                queue.add(node);
             }
         }
         doAddNodes(queue);
@@ -340,12 +341,15 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
         lockCoordinator.removeLockReleaseListener(resourceUnlockListener);
         completionHandler = localTaskNode -> {
         };
+        for (Node node : nodeMapping) {
+            node.reset();
+        }
         entryNodes.clear();
         nodeMapping.clear();
         executionQueue.clear();
         runningNodes.clear();
         for (Node node : filteredNodes) {
-            node.notFiltered();
+            node.reset();
         }
         filteredNodes.clear();
         producedButNotYetConsumed.clear();
@@ -573,9 +577,7 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
         if (cannotMakeProgress) {
             List<String> nodes = new ArrayList<>(executionQueue.size());
             for (Node node : executionQueue) {
-                if (!node.isReady()) {
-                    nodes.add(node + " (not ready)");
-                } else if (!node.allDependenciesComplete()) {
+                if (!node.allDependenciesComplete()) {
                     nodes.add(node + " (dependencies not complete)");
                 } else {
                     nodes.add(node.toString());
@@ -602,7 +604,7 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
         boolean foundReadyNode = false;
         while (iterator.hasNext()) {
             Node node = iterator.next();
-            if (node.isReady() && node.allDependenciesComplete()) {
+            if (node.allDependenciesComplete()) {
                 if (!node.allDependenciesSuccessful()) {
                     // Cannot execute this node due to failed dependencies - skip it
                     node.skipExecution(this::recordNodeCompleted);
@@ -616,8 +618,9 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
                 if (prepareNode != null) {
                     if (!prepareNode.isRequired()) {
                         prepareNode.require();
+                        prepareNode.updateAllDependenciesComplete();
                     }
-                    if (prepareNode.isReady()) {
+                    if (prepareNode.allDependenciesComplete()) {
                         if (attemptToStart(prepareNode, resources)) {
                             node.addDependencySuccessor(prepareNode);
                             node.forceAllDependenciesCompleteUpdate();
@@ -634,18 +637,16 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
                     iterator.remove();
                     return Selection.of(node);
                 }
-            } else if (!node.isComplete()) {
-                // Node is not yet complete
-                // - its dependencies are not yet complete
-                // - it is waiting for some external event such as completion of a task in another build
-                // - it is a finalizer for nodes that are not yet complete
-            } else {
+            } else if (node.isComplete()) {
                 // node is complete
-                // - it has been filtered
                 // - it is a priority node that has already executed
-                // - it is a finalizer for nodes that are complete but did not execute
+                // - it is a finalizer for nodes that are all complete but did not execute
                 iterator.remove();
             }
+            // Else, node is not yet complete
+            // - its dependencies are not yet complete
+            // - it is waiting for some external event such as completion of a task in another build
+            // - it is a finalizer for nodes that are not yet complete
         }
 
         LOGGER.debug("No node could be selected, nodes ready: {}", foundReadyNode);
@@ -904,7 +905,7 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
     }
 
     private void maybeNodeReady(Node node) {
-        if (node.isReady() && node.allDependenciesComplete()) {
+        if (node.allDependenciesComplete()) {
             maybeNodesReady = true;
             maybeNodesSelectable = true;
             if (node.isPriority()) {

@@ -129,15 +129,15 @@ public class TaskInAnotherBuild extends TaskNode implements SelfExecutingNode {
 
     @Override
     public boolean allDependenciesSuccessful() {
-        return state == IncludedBuildTaskResource.State.Success;
+        return super.allDependenciesSuccessful() && state == IncludedBuildTaskResource.State.Success;
     }
 
     @Override
-    public boolean isReady() {
-        // This node is ready to "execute" when the task in the other build has completed
-        if (!super.isReady()) {
+    public boolean doCheckDependenciesComplete() {
+        if (!super.doCheckDependenciesComplete()) {
             return false;
         }
+        // This node is ready to "execute" when the task in the other build has completed
         if (state.isComplete()) {
             return true;
         }

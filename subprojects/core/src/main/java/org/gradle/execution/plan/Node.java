@@ -163,7 +163,7 @@ public abstract class Node implements Comparable<Node> {
     public abstract Throwable getNodeFailure();
 
     public void startExecution(Consumer<Node> nodeStartAction) {
-        assert isReady();
+        assert allDependenciesComplete() && allDependenciesSuccessful();
         state = ExecutionState.EXECUTING;
         nodeStartAction.accept(this);
     }
@@ -207,8 +207,15 @@ public abstract class Node implements Comparable<Node> {
         filtered = true;
     }
 
-    public void notFiltered() {
-        filtered = false;
+    /**
+     * Discards any plan specific state for this node, so that it can potentally be added to another execution plan.
+     */
+    public void reset() {
+        if (!isCannotRunInAnyPlan()) {
+            filtered = false;
+            dependenciesProcessed = false;
+            state = ExecutionState.NOT_SCHEDULED;
+        }
     }
 
     public void setExecutionFailure(Throwable failure) {
@@ -276,10 +283,16 @@ public abstract class Node implements Comparable<Node> {
         }
     }
 
+    /**
+     * Is this node ready to execute or discard (eg because a dependency has failed)?
+     */
     public boolean allDependenciesComplete() {
-        return dependenciesState != DependenciesState.NOT_COMPLETE;
+        return state == ExecutionState.SHOULD_RUN && dependenciesState != DependenciesState.NOT_COMPLETE;
     }
 
+    /**
+     * Can this node execute or should it be discarded? Should only be called when {@link #allDependenciesComplete()} return true.
+     */
     public boolean allDependenciesSuccessful() {
         return dependenciesState == DependenciesState.COMPLETE_AND_SUCCESSFUL;
     }
