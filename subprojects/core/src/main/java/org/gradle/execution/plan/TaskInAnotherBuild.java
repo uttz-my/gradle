@@ -124,7 +124,7 @@ public class TaskInAnotherBuild extends TaskNode implements SelfExecutingNode {
     }
 
     @Override
-    public void resolveDependencies(TaskDependencyResolver dependencyResolver, Action<Node> processHardSuccessor) {
+    public void resolveDependencies(TaskDependencyResolver dependencyResolver) {
     }
 
     @Override

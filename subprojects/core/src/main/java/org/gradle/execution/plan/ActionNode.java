@@ -49,11 +49,10 @@ public class ActionNode extends Node implements SelfExecutingNode {
     }
 
     @Override
-    public void resolveDependencies(TaskDependencyResolver dependencyResolver, Action<Node> processHardSuccessor) {
+    public void resolveDependencies(TaskDependencyResolver dependencyResolver) {
         TaskDependencyContainer dependencies = action::visitDependencies;
         for (Node node : dependencyResolver.resolveDependenciesFor(null, dependencies)) {
             addDependencySuccessor(node);
-            processHardSuccessor.execute(node);
         }
     }
 
