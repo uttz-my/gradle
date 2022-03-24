@@ -734,7 +734,7 @@ class DefaultExecutionPlanTest extends AbstractExecutionPlanSpec {
         executionPlan.setContinueOnFailure(true)
 
         then:
-        executionPlan.tasks as List == [b, c, d]
+        executionPlan.tasks as List == [c, d]
         executedTasks == [c]
 
         when:
@@ -850,7 +850,7 @@ class DefaultExecutionPlanTest extends AbstractExecutionPlanSpec {
         addToGraphAndPopulate([c])
 
         then:
-        executionPlan.tasks as List == [b, c]
+        executionPlan.tasks as List == [c]
         executedTasks == []
     }
 

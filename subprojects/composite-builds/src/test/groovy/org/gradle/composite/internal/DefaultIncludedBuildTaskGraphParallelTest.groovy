@@ -192,9 +192,8 @@ class DefaultIncludedBuildTaskGraphParallelTest extends AbstractIncludedBuildTas
             return null
         }
 
-
         @Override
-        void resolveDependencies(TaskDependencyResolver dependencyResolver, Action<Node> processHardSuccessor) {
+        void resolveDependencies(TaskDependencyResolver dependencyResolver) {
         }
 
         @Override
