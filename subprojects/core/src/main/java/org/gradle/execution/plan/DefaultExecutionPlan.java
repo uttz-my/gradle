@@ -207,7 +207,7 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
                 // Make sure it has been configured
                 node.prepareForExecution(this::monitoredNodeReady);
                 node.resolveDependencies(dependencyResolver);
-                for (Node successor : node.getDependencySuccessors()) {
+                for (Node successor : node.getAllSuccessorsInReverseOrder()) {
                     if (!visiting.contains(successor)) {
                         queue.addFirst(successor);
                     }
@@ -326,13 +326,6 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
         dependencyResolver.clear();
         executionQueue.addAll(nodeMapping);
 
-        for (Node node : executionQueue) {
-            node.updateAllDependenciesComplete();
-        }
-
-        maybeNodesSelectable = true;
-        maybeNodesReady = true;
-
         lockCoordinator.addLockReleaseListener(resourceUnlockListener);
     }
 
@@ -358,6 +351,13 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
 
     @Override
     public WorkSource<Node> finalizePlan() {
+        for (Node node : executionQueue) {
+            node.updateAllDependenciesComplete();
+        }
+
+        maybeNodesSelectable = true;
+        maybeNodesReady = true;
+
         // For now
         return this;
     }
@@ -873,7 +873,9 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
 
     private void monitoredNodeReady(Node node) {
         lockCoordinator.assertHasStateLock();
-        maybeNodeReady(node);
+        if (node.updateAllDependenciesComplete()) {
+            maybeNodeReady(node);
+        }
     }
 
     @Override
