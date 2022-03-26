@@ -163,10 +163,11 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
     @Override
     public void addEntryTasks(Collection<? extends Task> tasks, int ordinal) {
         final Deque<Node> queue = new ArrayDeque<>();
+        final OrdinalGroup group = ordinalNodeAccess.group(ordinal);
 
         for (Task task : sorted(tasks)) {
             TaskNode node = taskNodeFactory.getOrCreateNode(task);
-            node.maybeSetOrdinal(ordinal);
+            node.setGroup(group);
             entryNodes.add(node);
             queue.add(node);
         }
@@ -208,6 +209,7 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
                 node.prepareForExecution(this::monitoredNodeReady);
                 node.resolveDependencies(dependencyResolver);
                 for (Node successor : node.getDependencySuccessorsInReverseOrder()) {
+                    successor.maybeInheritGroupAsDependency(node.getGroup());
                     if (!visiting.contains(successor)) {
                         queue.addFirst(successor);
                     }
@@ -219,6 +221,7 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
                 node.dependenciesProcessed();
                 // Finalizers run immediately after the node
                 for (Node finalizer : node.getFinalizers()) {
+                    finalizer.maybeInheritGroupAsFinalizer(node);
                     if (!visiting.contains(finalizer)) {
                         queue.addFirst(finalizer);
                     }
@@ -291,9 +294,6 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
                         }
                     }
                     nodeQueue.addFirst(new NodeInVisitingSegment(successor, currentSegment));
-                    if (node instanceof TaskNode && successor instanceof TaskNode) {
-                        ((TaskNode) successor).maybeInheritOrdinalAsDependency((TaskNode) node);
-                    }
                 }
                 path.push(node);
             } else {
@@ -312,9 +312,6 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
                 for (Node finalizer : node.getFinalizers()) {
                     if (!visitingNodes.containsKey(finalizer)) {
                         nodeQueue.addFirst(new NodeInVisitingSegment(finalizer, visitingSegmentCounter++));
-                        if (node instanceof TaskNode && finalizer instanceof TaskNode) {
-                            ((TaskNode) finalizer).maybeInheritOrdinalAsFinalizer((TaskNode) node);
-                        }
                     }
                 }
 
@@ -373,7 +370,7 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
     }
 
     private void createOrdinalRelationships(Node node) {
-        if (node instanceof TaskNode && ((TaskNode) node).getOrdinal() != TaskNode.UNKNOWN_ORDINAL) {
+        if (node instanceof TaskNode && node.getOrdinal() != null) {
             TaskNode taskNode = (TaskNode) node;
             TaskClassifier taskClassifier = new TaskClassifier();
             ProjectInternal project = (ProjectInternal) taskNode.getTask().getProject();
@@ -391,10 +388,10 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
                 OrdinalNode ordinalNode = ordinalNodeAccess.getOrCreateDestroyableLocationNode(taskNode.getOrdinal());
                 ordinalNode.addDependenciesFrom(taskNode);
 
-                if (taskNode.getOrdinal() > 0) {
+                if (taskNode.getOrdinal().getOrdinal() > 0) {
                     // Depend on any previous producer ordinal nodes (i.e. any producer ordinal nodes with a lower
                     // ordinal)
-                    ordinalNodeAccess.getPrecedingProducerLocationNodes(taskNode.getOrdinal())
+                    ordinalNodeAccess.getPrecedingProducerLocationNodes(taskNode.getOrdinal().getOrdinal())
                         .forEach(taskNode::addDependencySuccessor);
                 }
             } else if (taskClassifier.isProducer()) {
@@ -402,10 +399,10 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
                 OrdinalNode ordinalNode = ordinalNodeAccess.getOrCreateOutputLocationNode(taskNode.getOrdinal());
                 ordinalNode.addDependenciesFrom(taskNode);
 
-                if (taskNode.getOrdinal() > 0) {
+                if (taskNode.getOrdinal().getOrdinal() > 0) {
                     // Depend on any previous destroyer ordinal nodes (i.e. any destroyer ordinal nodes with a lower
                     // ordinal)
-                    ordinalNodeAccess.getPrecedingDestroyerLocationNodes(taskNode.getOrdinal())
+                    ordinalNodeAccess.getPrecedingDestroyerLocationNodes(taskNode.getOrdinal().getOrdinal())
                         .forEach(taskNode::addDependencySuccessor);
                 }
             }
@@ -717,11 +714,11 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
     }
 
     private void updateAllDependenciesCompleteForPredecessors(Node node) {
-        for (Node predecessor : node.getAllPredecessors()) {
-            if (predecessor.updateAllDependenciesComplete()) {
-                maybeNodeReady(predecessor);
+        node.visitAllDependents(dependent -> {
+            if (dependent.updateAllDependenciesComplete()) {
+                maybeNodeReady(dependent);
             }
-        }
+        });
     }
 
     private boolean tryLockProjectFor(Node node, List<ResourceLock> resources) {
@@ -921,7 +918,8 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
     }
 
     private void attachDependenciesAsFinalizers(Node node) {
-        if (node.getFinalizingSuccessors().isEmpty()) {
+        FinalizerGroup finalizers = node.getFinalizerGroup();
+        if (finalizers == null) {
             return;
         }
 
@@ -936,7 +934,7 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
                 enforcedNodes.add(candidate);
                 candidates.addAll(candidate.getDependencySuccessors());
                 if (candidate.isRequired()) {
-                    candidate.addFinalizingSuccessors(node.getFinalizingSuccessors());
+                    candidate.maybeInheritGroupAsDependency(finalizers);
                 }
             }
         }

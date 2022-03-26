@@ -20,23 +20,17 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import org.gradle.api.internal.TaskInternal;
 import org.gradle.internal.deprecation.DeprecationLogger;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
 import java.util.NavigableSet;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public abstract class TaskNode extends Node {
-    private static final Logger LOGGER = LoggerFactory.getLogger(TaskNode.class);
-    public static final int UNKNOWN_ORDINAL = -1;
-
     private final NavigableSet<Node> mustSuccessors = Sets.newTreeSet();
     private final Set<Node> mustPredecessors = Sets.newHashSet();
     private final NavigableSet<Node> shouldSuccessors = Sets.newTreeSet();
     private final NavigableSet<Node> finalizers = Sets.newTreeSet();
     private final NavigableSet<Node> finalizingSuccessors = Sets.newTreeSet();
-    private int ordinal = UNKNOWN_ORDINAL;
 
     @Override
     public boolean doCheckDependenciesComplete() {
@@ -50,9 +44,12 @@ public abstract class TaskNode extends Node {
             }
         }
 
-        for (Node finalized : finalizingSuccessors) {
-            if (!finalized.isComplete()) {
-                return false;
+        FinalizerGroup finalizer = getGroup().asFinalizer();
+        if (finalizer != null) {
+            for (Node finalized : finalizer.getFinalizedNodes()) {
+                if (!finalized.isComplete()) {
+                    return false;
+                }
             }
         }
 
@@ -64,12 +61,14 @@ public abstract class TaskNode extends Node {
         if (!super.allDependenciesSuccessful()) {
             return false;
         }
-        if (finalizingSuccessors.isEmpty()) {
+
+        FinalizerGroup finalizer = getGroup().asFinalizer();
+        if (finalizer == null) {
             return true;
         }
 
         // If any finalized node has executed, then this node can execute
-        for (Node finalized : finalizingSuccessors) {
+        for (Node finalized : finalizer.getFinalizedNodes()) {
             if (finalized.isExecuted()) {
                 return true;
             }
@@ -100,12 +99,8 @@ public abstract class TaskNode extends Node {
         return finalizingSuccessors;
     }
 
-    @Override
-    public void addFinalizingSuccessors(Collection<Node> finalizingSuccessors) {
-        this.finalizingSuccessors.addAll(finalizingSuccessors);
-        for (Node finalized : finalizingSuccessors) {
-            addFinalizingSuccessor(finalized);
-        }
+    public Set<Node> getFinalizingSuccessorsInReverseOrder() {
+        return finalizingSuccessors.descendingSet();
     }
 
     public Set<Node> getShouldSuccessors() {
@@ -136,7 +131,7 @@ public abstract class TaskNode extends Node {
     public Iterable<Node> getAllSuccessors() {
         return Iterables.concat(
             shouldSuccessors,
-            finalizingSuccessors,
+            getGroup().getSuccessors(),
             mustSuccessors,
             super.getAllSuccessors()
         );
@@ -145,7 +140,7 @@ public abstract class TaskNode extends Node {
     @Override
     public Iterable<Node> getHardSuccessors() {
         return Iterables.concat(
-            finalizingSuccessors,
+            getGroup().getSuccessors(),
             mustSuccessors,
             super.getHardSuccessors()
         );
@@ -156,14 +151,20 @@ public abstract class TaskNode extends Node {
         return Iterables.concat(
             super.getAllSuccessorsInReverseOrder(),
             mustSuccessors.descendingSet(),
-            finalizingSuccessors.descendingSet(),
+            getGroup().getSuccessorsInReverseOrder(),
             shouldSuccessors.descendingSet()
         );
     }
 
     @Override
-    public Iterable<Node> getAllPredecessors() {
-        return Iterables.concat(mustPredecessors, finalizers, super.getAllPredecessors());
+    protected void visitAllDependents(Consumer<Node> visitor) {
+        super.visitAllDependents(visitor);
+        for (Node node : mustPredecessors) {
+            visitor.accept(node);
+        }
+        for (Node node : finalizers) {
+            node.getFinalizerGroup().visitAllMembers(visitor);
+        }
     }
 
     @Override
@@ -189,23 +190,15 @@ public abstract class TaskNode extends Node {
         }
     }
 
-    public int getOrdinal() {
-        return ordinal;
-    }
-
-    public void maybeSetOrdinal(int ordinal) {
-        if (this.ordinal == UNKNOWN_ORDINAL || this.ordinal > ordinal) {
-            this.ordinal = ordinal;
-        }
-    }
-
-    public void maybeInheritOrdinalAsDependency(TaskNode node) {
-        maybeSetOrdinal(node.getOrdinal());
-    }
-
-    public void maybeInheritOrdinalAsFinalizer(TaskNode node) {
-        if (this.ordinal == UNKNOWN_ORDINAL || this.ordinal < node.getOrdinal()) {
-            this.ordinal = node.getOrdinal();
+    @Override
+    public void maybeInheritGroupAsFinalizer(Node node) {
+        NodeGroup fromGroup = node.getGroup();
+        NodeGroup current = getGroup();
+        if (current instanceof FinalizerGroup) {
+            FinalizerGroup finalizerGroup = (FinalizerGroup) current;
+            finalizerGroup.maybeInheritFrom(fromGroup);
+        } else {
+            setGroup(new FinalizerGroup(this, fromGroup));
         }
     }
 }

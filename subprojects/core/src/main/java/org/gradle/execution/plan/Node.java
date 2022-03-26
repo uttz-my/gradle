@@ -27,7 +27,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import javax.annotation.OverridingMethodsMustInvokeSuper;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.NavigableSet;
@@ -69,10 +68,56 @@ public abstract class Node implements Comparable<Node> {
     private final NavigableSet<Node> dependencySuccessors = Sets.newTreeSet();
     private final NavigableSet<Node> dependencyPredecessors = Sets.newTreeSet();
     private final MutationInfo mutationInfo = new MutationInfo(this);
+    private NodeGroup group = NodeGroup.DEFAULT_GROUP;
 
     @VisibleForTesting
     ExecutionState getState() {
         return state;
+    }
+
+    public NodeGroup getGroup() {
+        return group;
+    }
+
+    public void setGroup(NodeGroup group) {
+        this.group.removeMember(this);
+        this.group = group;
+        this.group.addMember(this);
+    }
+
+    @Nullable
+    public OrdinalGroup getOrdinal() {
+        return group.asOrdinal();
+    }
+
+    public void maybeInheritGroupAsDependency(NodeGroup candidate) {
+        if (candidate.asFinalizer() != null) {
+            // Candidate is a finalizer group
+            if (this.group.isEntryPoint()) {
+                // When this node is reachable from an entry point, continue to treat it as a regular node rather than finalizer
+                return;
+            } else {
+                // Treat this node as a finalizer
+                setGroup(candidate);
+                return;
+            }
+        }
+
+        // Candidate is a regular group, use the group with the lowest ordinal
+        OrdinalGroup current = this.group.asOrdinal();
+        OrdinalGroup ordinal = candidate.asOrdinal();
+        if (current == null || (ordinal != null && current.getOrdinal() > ordinal.getOrdinal())) {
+            setGroup(candidate);
+        }
+    }
+
+    @Nullable
+    public FinalizerGroup getFinalizerGroup() {
+        return group.asFinalizer();
+    }
+
+    public void maybeInheritGroupAsFinalizer(Node node) {
+        throw new UnsupportedOperationException();
     }
 
     public boolean isRequired() {
@@ -208,9 +253,10 @@ public abstract class Node implements Comparable<Node> {
     }
 
     /**
-     * Discards any plan specific state for this node, so that it can potentally be added to another execution plan.
+     * Discards any plan specific state for this node, so that it can potentially be added to another execution plan.
      */
     public void reset() {
+        group = NodeGroup.DEFAULT_GROUP;
         if (!isCannotRunInAnyPlan()) {
             filtered = false;
             dependenciesProcessed = false;
@@ -326,9 +372,14 @@ public abstract class Node implements Comparable<Node> {
         return false;
     }
 
-    @OverridingMethodsMustInvokeSuper
-    protected Iterable<Node> getAllPredecessors() {
-        return getDependencyPredecessors();
+    /**
+     * Visits all nodes whose {@link #allDependenciesComplete()} state depends in some way on the completion of this node.
+     * Should visit the nodes in a deterministic order, but the order can be whatever best makes sense for the node implementation.
+     */
+    protected void visitAllDependents(Consumer<Node> visitor) {
+        for (Node node : getDependencyPredecessors()) {
+            visitor.accept(node);
+        }
     }
 
     /**
@@ -387,9 +438,6 @@ public abstract class Node implements Comparable<Node> {
 
     public Set<Node> getFinalizingSuccessors() {
         return Collections.emptySet();
-    }
-
-    public void addFinalizingSuccessors(Collection<Node> finalizingSuccessors) {
     }
 
     /**
