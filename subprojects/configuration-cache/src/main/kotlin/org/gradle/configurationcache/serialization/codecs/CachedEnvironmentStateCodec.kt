@@ -64,7 +64,7 @@ object CachedEnvironmentStateCodec : Codec<EnvironmentChangeTracker.CachedEnviro
         val updates = readList {
             val key = read() as Any
             val value = read()
-            return@readList EnvironmentChangeTracker.SystemPropertySet(key, value, null)
+            EnvironmentChangeTracker.SystemPropertySet(key, value, null)
         }
 
         val removals = readList {
