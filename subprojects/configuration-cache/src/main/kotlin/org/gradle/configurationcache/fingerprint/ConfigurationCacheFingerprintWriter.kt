@@ -37,8 +37,10 @@ import org.gradle.api.internal.file.collections.FileSystemMirroringFileTree
 import org.gradle.api.internal.project.ProjectState
 import org.gradle.api.internal.provider.ValueSourceProviderFactory
 import org.gradle.api.internal.provider.sources.EnvironmentVariableValueSource
+import org.gradle.api.internal.provider.sources.EnvironmentVariablesPrefixedByValueSource
 import org.gradle.api.internal.provider.sources.FileContentValueSource
 import org.gradle.api.internal.provider.sources.GradlePropertyValueSource
+import org.gradle.api.internal.provider.sources.SystemPropertiesPrefixedByValueSource
 import org.gradle.api.internal.provider.sources.SystemPropertyValueSource
 import org.gradle.api.internal.provider.sources.process.ProcessOutputValueSource
 import org.gradle.api.provider.ValueSourceParameters
@@ -237,8 +239,14 @@ class ConfigurationCacheFingerprintWriter(
             is SystemPropertyValueSource.Parameters -> {
                 systemPropertyRead(parameters.propertyName.get(), obtainedValue.value.get(), null)
             }
+            is SystemPropertiesPrefixedByValueSource.Parameters -> {
+                systemPropertiesPrefixedBy(parameters.prefix.get(), obtainedValue.value.get().uncheckedCast())
+            }
             is EnvironmentVariableValueSource.Parameters -> {
                 envVariableRead(parameters.variableName.get(), obtainedValue.value.get() as? String, null)
+            }
+            is EnvironmentVariablesPrefixedByValueSource.Parameters -> {
+                envVariablesPrefixedBy(parameters.prefix.get(), obtainedValue.value.get().uncheckedCast())
             }
             is ProcessOutputValueSource.Parameters -> {
                 sink().write(ValueSource(obtainedValue.uncheckedCast()))
