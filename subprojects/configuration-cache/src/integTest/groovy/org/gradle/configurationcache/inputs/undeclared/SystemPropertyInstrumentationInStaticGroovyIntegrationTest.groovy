@@ -90,7 +90,7 @@ class SystemPropertyInstrumentationInStaticGroovyIntegrationTest extends Abstrac
                     def newProps = new Properties()
                     System.properties.forEach { k, v -> newProps[k] = v }
                     newProps.replace("some.property", "new.value")
-                    $setProperties
+                    ${setProperties}(newProps)
                 }
             }
 
@@ -118,8 +118,8 @@ class SystemPropertyInstrumentationInStaticGroovyIntegrationTest extends Abstrac
         outputContains("returned = new.value")
 
         where:
-        setProperties                    | _
-        "System.setProperties(newProps)" | _
-        "setProperties(newProps)"        | _
+        setProperties          | _
+        "System.setProperties" | _
+        "setProperties"        | _
     }
 }
