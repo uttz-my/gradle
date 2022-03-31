@@ -118,6 +118,6 @@ class InstrumentedInputAccessListener(
     }
 
     override fun fileCollectionObserved(fileCollection: FileCollection, consumer: String) {
-        broadcast.fileCollectionObserved(fileCollection, consumer)
+        undeclaredInputBroadcast.fileCollectionObserved(fileCollection, consumer)
     }
 }
