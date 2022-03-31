@@ -191,14 +191,16 @@ public abstract class TaskNode extends Node {
     }
 
     @Override
-    public void maybeInheritGroupAsFinalizer(Node node) {
+    public boolean maybeInheritGroupAsFinalizer(Node node) {
         NodeGroup fromGroup = node.getGroup();
         NodeGroup current = getGroup();
         if (current instanceof FinalizerGroup) {
             FinalizerGroup finalizerGroup = (FinalizerGroup) current;
             finalizerGroup.maybeInheritFrom(fromGroup);
+            return false;
         } else {
             setGroup(new FinalizerGroup(this, fromGroup));
+            return true;
         }
     }
 }

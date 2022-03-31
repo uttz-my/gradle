@@ -21,8 +21,19 @@ import java.util.Collection;
 import java.util.Collections;
 
 /**
- * Represents the "entry point" that caused a node to be included in the graph.
- * This can affect how the node is scheduled relative to other nodes in the graph.
+ * <p>Represents the reason why a node is included in the work graph. In general, nodes are included in the graph because they are either a "root node" or they are reachable from one or more "root nodes"
+ * or both. There are two basic kind of "root nodes":</p>
+ * <ul>
+ *     <li>
+ *         A "requested task", which is a task requested on the command-line. For example given `gradle a b:` then all the tasks that match `a` are treated as a requested task group (with ordinal 0)
+ *         and all the tasks that match `b` are treated as another requested task group (with ordinal 1).
+ *     </li>
+ *     <li>A finalizer node. Each finalizer is treated as its own node group.</li>
+ * </ul>
+ *
+ * <p>A node may be included in more than one group, for example when it is reachable from both a requested task and a finalizer.</p>
+ *
+ * <p>The the groups that the node belongs to can affect how the node is scheduled relative to other nodes in the graph.</p>
  */
 abstract class NodeGroup {
     public static final NodeGroup DEFAULT_GROUP = new NodeGroup() {
@@ -37,10 +48,6 @@ abstract class NodeGroup {
             return null;
         }
     };
-
-    public boolean isEntryPoint() {
-        return false;
-    }
 
     @Nullable
     public abstract OrdinalGroup asOrdinal();

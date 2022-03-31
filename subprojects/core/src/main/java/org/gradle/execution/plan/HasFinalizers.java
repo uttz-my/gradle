@@ -16,30 +16,8 @@
 
 package org.gradle.execution.plan;
 
-import javax.annotation.Nullable;
+import java.util.Set;
 
-/**
- * Represents a set of nodes reachable from a particular entry point node (a "requested task")
- */
-public class OrdinalGroup extends NodeGroup {
-    private final int ordinal;
-
-    public OrdinalGroup(int ordinal) {
-        this.ordinal = ordinal;
-    }
-
-    @Override
-    public String toString() {
-        return "task group " + ordinal;
-    }
-
-    @Nullable
-    @Override
-    public OrdinalGroup asOrdinal() {
-        return this;
-    }
-
-    public int getOrdinal() {
-        return ordinal;
-    }
+abstract class HasFinalizers extends NodeGroup {
+    public abstract Set<FinalizerGroup> getFinalizerGroups();
 }

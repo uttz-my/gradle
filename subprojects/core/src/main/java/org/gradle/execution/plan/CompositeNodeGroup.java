@@ -17,29 +17,29 @@
 package org.gradle.execution.plan;
 
 import javax.annotation.Nullable;
+import java.util.Set;
 
 /**
- * Represents a set of nodes reachable from a particular entry point node (a "requested task")
+ * Represents a group of nodes that are reachable from more than one root node.
  */
-public class OrdinalGroup extends NodeGroup {
-    private final int ordinal;
+public class CompositeNodeGroup extends HasFinalizers {
+    @Nullable
+    private final OrdinalGroup ordinalGroup;
+    private final Set<FinalizerGroup> finalizerGroups;
 
-    public OrdinalGroup(int ordinal) {
-        this.ordinal = ordinal;
-    }
-
-    @Override
-    public String toString() {
-        return "task group " + ordinal;
+    public CompositeNodeGroup(@Nullable OrdinalGroup ordinalGroup, Set<FinalizerGroup> finalizerGroups) {
+        this.ordinalGroup = ordinalGroup;
+        this.finalizerGroups = finalizerGroups;
     }
 
     @Nullable
     @Override
     public OrdinalGroup asOrdinal() {
-        return this;
+        return ordinalGroup;
     }
 
-    public int getOrdinal() {
-        return ordinal;
+    @Override
+    public Set<FinalizerGroup> getFinalizerGroups() {
+        return finalizerGroups;
     }
 }

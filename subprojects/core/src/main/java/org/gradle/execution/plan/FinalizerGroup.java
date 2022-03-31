@@ -16,6 +16,8 @@
 
 package org.gradle.execution.plan;
 
+import com.google.common.collect.ImmutableSet;
+
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -25,7 +27,7 @@ import java.util.function.Consumer;
 /**
  * The set of nodes reachable from a particular finalizer node.
  */
-class FinalizerGroup extends NodeGroup {
+class FinalizerGroup extends HasFinalizers {
     @Nullable
     private OrdinalGroup ordinal;
     private final TaskNode node;
@@ -73,6 +75,11 @@ class FinalizerGroup extends NodeGroup {
         if (ordinal != null && (this.ordinal == null || this.ordinal.getOrdinal() < ordinal.getOrdinal())) {
             this.ordinal = ordinal;
         }
+    }
+
+    @Override
+    public Set<FinalizerGroup> getFinalizerGroups() {
+        return ImmutableSet.of(this);
     }
 
     @Override

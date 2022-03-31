@@ -209,7 +209,7 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
                 node.prepareForExecution(this::monitoredNodeReady);
                 node.resolveDependencies(dependencyResolver);
                 for (Node successor : node.getDependencySuccessorsInReverseOrder()) {
-                    successor.maybeInheritGroupAsDependency(node.getGroup());
+                    successor.maybeInheritOrdinalAsDependency(node.getGroup());
                     if (!visiting.contains(successor)) {
                         queue.addFirst(successor);
                     }
@@ -221,7 +221,6 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
                 node.dependenciesProcessed();
                 // Finalizers run immediately after the node
                 for (Node finalizer : node.getFinalizers()) {
-                    finalizer.maybeInheritGroupAsFinalizer(node);
                     if (!visiting.contains(finalizer)) {
                         queue.addFirst(finalizer);
                     }
@@ -310,12 +309,13 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
 
                 // Add any finalizers to the queue
                 for (Node finalizer : node.getFinalizers()) {
+                    if (finalizer.maybeInheritGroupAsFinalizer(node)) {
+                        updateDependenciesOfFinalizer(finalizer, new HashSet<>());
+                    }
                     if (!visitingNodes.containsKey(finalizer)) {
                         nodeQueue.addFirst(new NodeInVisitingSegment(finalizer, visitingSegmentCounter++));
                     }
                 }
-
-                attachDependenciesAsFinalizers(node);
 
                 // Add any ordinal relationships for this node
                 createOrdinalRelationships(node);
@@ -917,27 +917,27 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
         }
     }
 
-    private void attachDependenciesAsFinalizers(Node node) {
-        FinalizerGroup finalizers = node.getFinalizerGroup();
-        if (finalizers == null) {
-            return;
-        }
+    private void updateDependenciesOfFinalizer(Node finalizer, Set<Node> visited) {
+        HasFinalizers finalizers = (HasFinalizers) finalizer.getGroup();
 
-        Set<Node> enforcedNodes = new HashSet<>();
+        Set<Node> updatedNodes = new HashSet<>();
+        Deque<Node> queue = new ArrayDeque<>();
+        queue.addAll(finalizer.getDependencySuccessors());
 
-        Deque<Node> candidates = new ArrayDeque<>();
-        candidates.addAll(node.getDependencySuccessors());
-
-        while (!candidates.isEmpty()) {
-            Node candidate = candidates.pop();
-            if (!enforcedNodes.contains(candidate)) {
-                enforcedNodes.add(candidate);
-                candidates.addAll(candidate.getDependencySuccessors());
-                if (candidate.isRequired()) {
-                    candidate.maybeInheritGroupAsDependency(finalizers);
+        while (!queue.isEmpty()) {
+            Node node = queue.pop();
+            if (updatedNodes.add(node)) {
+                if (node.isRequired()) {
+                    node.maybeInheritGroupAsFinalizerDependency(finalizers);
+                    if (node.getGroup() != finalizers) {
+                        updateDependenciesOfFinalizer(node, updatedNodes);
+                    } else {
+                        queue.addAll(node.getDependencySuccessors());
+                    }
                 }
             }
         }
+        visited.addAll(updatedNodes);
     }
 
     private void handleFailure(Node node) {

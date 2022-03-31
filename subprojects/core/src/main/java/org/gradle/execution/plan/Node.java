@@ -17,6 +17,7 @@
 package org.gradle.execution.plan;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.gradle.api.Action;
 import org.gradle.api.internal.project.ProjectInternal;
@@ -90,25 +91,52 @@ public abstract class Node implements Comparable<Node> {
         return group.asOrdinal();
     }
 
-    public void maybeInheritGroupAsDependency(NodeGroup candidate) {
-        if (candidate.asFinalizer() != null) {
-            // Candidate is a finalizer group
-            if (this.group.isEntryPoint()) {
-                // When this node is reachable from an entry point, continue to treat it as a regular node rather than finalizer
-                return;
-            } else {
-                // Treat this node as a finalizer
-                setGroup(candidate);
-                return;
-            }
+    /**
+     * Potentially update the ordinal group of this node when it is reachable from the given group.
+     */
+    public void maybeInheritOrdinalAsDependency(NodeGroup candidate) {
+        // Select the group with the lowest ordinal
+        OrdinalGroup candidateOrdinal = candidate.asOrdinal();
+        if (candidateOrdinal == null) {
+            return;
         }
-
-        // Candidate is a regular group, use the group with the lowest ordinal
-        OrdinalGroup current = this.group.asOrdinal();
-        OrdinalGroup ordinal = candidate.asOrdinal();
-        if (current == null || (ordinal != null && current.getOrdinal() > ordinal.getOrdinal())) {
+        OrdinalGroup currentOrdinal = group.asOrdinal();
+        if (currentOrdinal == null || candidateOrdinal.getOrdinal() < currentOrdinal.getOrdinal()) {
             setGroup(candidate);
         }
+    }
+
+    public void maybeInheritGroupAsFinalizerDependency(HasFinalizers finalizers) {
+        // This node can be:
+        // - in the "default" group (ie not-a-group) -> use the candidate
+        // - already a member of the given group -> ignore
+        // - in an ordinal group -> merge with the candidate
+        // - in multiple finalizer groups -> merge with the candidate
+        // - in an ordinal group and one or more finalizer groups -> merge with the candidate
+
+        if (group == finalizers) {
+            return;
+        }
+
+        if (group == NodeGroup.DEFAULT_GROUP) {
+            setGroup(finalizers);
+            return;
+        }
+
+        if (group instanceof OrdinalGroup) {
+            setGroup(new CompositeNodeGroup(group.asOrdinal(), finalizers.getFinalizerGroups()));
+            return;
+        }
+
+        HasFinalizers currentFinalizers = (HasFinalizers) group;
+        if (currentFinalizers.getFinalizerGroups().containsAll(finalizers.getFinalizerGroups())) {
+            return;
+        }
+
+        ImmutableSet.Builder<FinalizerGroup> builder = ImmutableSet.builder();
+        builder.addAll(currentFinalizers.getFinalizerGroups());
+        builder.addAll(finalizers.getFinalizerGroups());
+        setGroup(new CompositeNodeGroup(group.asOrdinal(), builder.build()));
     }
 
     @Nullable
@@ -116,7 +144,12 @@ public abstract class Node implements Comparable<Node> {
         return group.asFinalizer();
     }
 
-    public void maybeInheritGroupAsFinalizer(Node node) {
+    /**
+     * Maybe update the group for this node when it is a finalizer for the given node.
+     *
+     * @return true when the group of this node changes (and so should be propagated to this node's dependencies).
+     */
+    public boolean maybeInheritGroupAsFinalizer(Node node) {
         throw new UnsupportedOperationException();
     }
 
