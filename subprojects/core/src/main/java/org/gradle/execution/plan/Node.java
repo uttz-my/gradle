@@ -23,8 +23,6 @@ import org.gradle.api.Action;
 import org.gradle.api.internal.project.ProjectInternal;
 import org.gradle.api.tasks.VerificationException;
 import org.gradle.internal.resources.ResourceLock;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import javax.annotation.OverridingMethodsMustInvokeSuper;
@@ -38,8 +36,6 @@ import java.util.function.Consumer;
  * A node in the execution graph that represents some executable code with potential dependencies on other nodes.
  */
 public abstract class Node implements Comparable<Node> {
-    private static final Logger LOGGER = LoggerFactory.getLogger(Node.class);
-
     @VisibleForTesting
     enum ExecutionState {
         // Node is not scheduled to run in any plan
@@ -95,13 +91,23 @@ public abstract class Node implements Comparable<Node> {
      * Potentially update the ordinal group of this node when it is reachable from the given group.
      */
     public void maybeInheritOrdinalAsDependency(NodeGroup candidate) {
-        // Select the group with the lowest ordinal
-        OrdinalGroup candidateOrdinal = candidate.asOrdinal();
-        if (candidateOrdinal == null) {
+        // This is called prior to updating the groups of finalizers and their dependencies. So this node can be:
+        // - in the "default" group (ie not-a-group) -> use the candidate
+        // - in an ordinal group -> use the group with the lowest ordinal
+        //
+        // The candidate can also be one of these
+        //
+        if (group == candidate || candidate == NodeGroup.DEFAULT_GROUP) {
             return;
         }
-        OrdinalGroup currentOrdinal = group.asOrdinal();
-        if (currentOrdinal == null || candidateOrdinal.getOrdinal() < currentOrdinal.getOrdinal()) {
+        if (group == NodeGroup.DEFAULT_GROUP) {
+            setGroup(candidate);
+            return;
+        }
+
+        OrdinalGroup candidateOrdinal = (OrdinalGroup) candidate;
+        OrdinalGroup currentOrdinal = (OrdinalGroup) group;
+        if (candidateOrdinal.getOrdinal() < currentOrdinal.getOrdinal()) {
             setGroup(candidate);
         }
     }
@@ -128,6 +134,10 @@ public abstract class Node implements Comparable<Node> {
             return;
         }
 
+        if (!getFinalizingSuccessors().isEmpty()) {
+            return;
+        }
+
         HasFinalizers currentFinalizers = (HasFinalizers) group;
         if (currentFinalizers.getFinalizerGroups().containsAll(finalizers.getFinalizerGroups())) {
             return;
@@ -146,10 +156,8 @@ public abstract class Node implements Comparable<Node> {
 
     /**
      * Maybe update the group for this node when it is a finalizer for the given node.
-     *
-     * @return true when the group of this node changes (and so should be propagated to this node's dependencies).
      */
-    public boolean maybeInheritGroupAsFinalizer(Node node) {
+    public void updateGroupOfFinalizer() {
         throw new UnsupportedOperationException();
     }
 
@@ -331,16 +339,12 @@ public abstract class Node implements Comparable<Node> {
 
     @OverridingMethodsMustInvokeSuper
     protected boolean doCheckDependenciesComplete() {
-        LOGGER.debug("Checking if all dependencies are complete for {}", this);
         for (Node dependency : dependencySuccessors) {
             if (!dependency.isComplete()) {
-                LOGGER.debug("Dependency {} for {} not yet completed", dependency, this);
                 return false;
             }
         }
-
-        LOGGER.debug("All dependencies are complete for {}", this);
-        return true;
+        return group.isSuccessorsCompleteFor(this);
     }
 
     /**
@@ -377,7 +381,7 @@ public abstract class Node implements Comparable<Node> {
      * Can this node execute or should it be discarded? Should only be called when {@link #allDependenciesComplete()} return true.
      */
     public boolean allDependenciesSuccessful() {
-        return dependenciesState == DependenciesState.COMPLETE_AND_SUCCESSFUL;
+        return dependenciesState == DependenciesState.COMPLETE_AND_SUCCESSFUL && group.isSuccessorsSuccessfulFor(this);
     }
 
     /**

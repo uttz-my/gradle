@@ -44,36 +44,7 @@ public abstract class TaskNode extends Node {
             }
         }
 
-        FinalizerGroup finalizer = getGroup().asFinalizer();
-        if (finalizer != null) {
-            for (Node finalized : finalizer.getFinalizedNodes()) {
-                if (!finalized.isComplete()) {
-                    return false;
-                }
-            }
-        }
-
         return true;
-    }
-
-    @Override
-    public boolean allDependenciesSuccessful() {
-        if (!super.allDependenciesSuccessful()) {
-            return false;
-        }
-
-        FinalizerGroup finalizer = getGroup().asFinalizer();
-        if (finalizer == null) {
-            return true;
-        }
-
-        // If any finalized node has executed, then this node can execute
-        for (Node finalized : finalizer.getFinalizedNodes()) {
-            if (finalized.isExecuted()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     public Set<Node> getMustSuccessors() {
@@ -191,16 +162,17 @@ public abstract class TaskNode extends Node {
     }
 
     @Override
-    public boolean maybeInheritGroupAsFinalizer(Node node) {
-        NodeGroup fromGroup = node.getGroup();
-        NodeGroup current = getGroup();
-        if (current instanceof FinalizerGroup) {
-            FinalizerGroup finalizerGroup = (FinalizerGroup) current;
-            finalizerGroup.maybeInheritFrom(fromGroup);
-            return false;
+    public void updateGroupOfFinalizer() {
+        NodeGroup currentGroup = getGroup();
+        FinalizerGroup finalizerGroup;
+        if (!(currentGroup instanceof FinalizerGroup)) {
+            finalizerGroup = new FinalizerGroup(this, currentGroup);
+            setGroup(finalizerGroup);
         } else {
-            setGroup(new FinalizerGroup(this, fromGroup));
-            return true;
+            finalizerGroup = (FinalizerGroup) currentGroup;
+        }
+        for (Node node : getFinalizingSuccessors()) {
+            finalizerGroup.maybeInheritFrom(node.getGroup());
         }
     }
 }

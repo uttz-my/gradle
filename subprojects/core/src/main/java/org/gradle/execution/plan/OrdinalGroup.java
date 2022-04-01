@@ -39,6 +39,11 @@ public class OrdinalGroup extends NodeGroup {
         return this;
     }
 
+    @Override
+    public boolean isReachableFromOrdinalGroup() {
+        return true;
+    }
+
     public int getOrdinal() {
         return ordinal;
     }

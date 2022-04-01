@@ -101,6 +101,7 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
     private final Set<Node> filteredNodes = newIdentityHashSet();
     private final Set<Node> producedButNotYetConsumed = newIdentityHashSet();
     private final Map<Pair<Node, Node>, Boolean> reachableCache = new HashMap<>();
+    private final Set<Node> finalizers = new LinkedHashSet<>();
     private final OrdinalNodeAccess ordinalNodeAccess = new OrdinalNodeAccess();
     private Consumer<LocalTaskNode> completionHandler = localTaskNode -> {
     };
@@ -182,7 +183,7 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
     }
 
     private void doAddNodes(Deque<Node> queue) {
-        final Set<Node> visiting = new HashSet<>();
+        Set<Node> visiting = new HashSet<>();
         while (!queue.isEmpty()) {
             Node node = queue.getFirst();
             if (node.getDependenciesProcessed() || node.isCannotRunInAnyPlan()) {
@@ -221,6 +222,7 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
                 node.dependenciesProcessed();
                 // Finalizers run immediately after the node
                 for (Node finalizer : node.getFinalizers()) {
+                    finalizers.add(finalizer);
                     if (!visiting.contains(finalizer)) {
                         queue.addFirst(finalizer);
                     }
@@ -238,6 +240,11 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
 
     @Override
     public void determineExecutionPlan() {
+        for (Node finalizer : finalizers) {
+            finalizer.updateGroupOfFinalizer();
+            updateDependenciesOfFinalizer(finalizer, new HashSet<>());
+        }
+
         LinkedList<NodeInVisitingSegment> nodeQueue = newLinkedList();
         int visitingSegmentCounter = 0;
         for (Node node : entryNodes) {
@@ -309,9 +316,6 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
 
                 // Add any finalizers to the queue
                 for (Node finalizer : node.getFinalizers()) {
-                    if (finalizer.maybeInheritGroupAsFinalizer(node)) {
-                        updateDependenciesOfFinalizer(finalizer, new HashSet<>());
-                    }
                     if (!visitingNodes.containsKey(finalizer)) {
                         nodeQueue.addFirst(new NodeInVisitingSegment(finalizer, visitingSegmentCounter++));
                     }

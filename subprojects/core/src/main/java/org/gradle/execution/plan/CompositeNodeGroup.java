@@ -39,6 +39,25 @@ public class CompositeNodeGroup extends HasFinalizers {
     }
 
     @Override
+    public boolean isReachableFromOrdinalGroup() {
+        return true;
+    }
+
+    @Override
+    public void addMember(Node node) {
+        for (FinalizerGroup group : finalizerGroups) {
+            group.addMember(node);
+        }
+    }
+
+    @Override
+    public void removeMember(Node node) {
+        for (FinalizerGroup group : finalizerGroups) {
+            group.removeMember(node);
+        }
+    }
+
+    @Override
     public Set<FinalizerGroup> getFinalizerGroups() {
         return finalizerGroups;
     }

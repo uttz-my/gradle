@@ -47,10 +47,17 @@ abstract class NodeGroup {
         public OrdinalGroup asOrdinal() {
             return null;
         }
+
+        @Override
+        public boolean isReachableFromOrdinalGroup() {
+            return false;
+        }
     };
 
     @Nullable
     public abstract OrdinalGroup asOrdinal();
+
+    public abstract boolean isReachableFromOrdinalGroup();
 
     @Nullable
     public FinalizerGroup asFinalizer() {
@@ -60,12 +67,20 @@ abstract class NodeGroup {
     /**
      * Returns the set of nodes which must complete before any node in this group can start.
      */
-    public Collection<Node> getSuccessors() {
+    public Iterable<? extends Node> getSuccessors() {
         return Collections.emptyList();
     }
 
-    public Collection<Node> getSuccessorsInReverseOrder() {
+    public Iterable<? extends Node> getSuccessorsInReverseOrder() {
         return Collections.emptyList();
+    }
+
+    public boolean isSuccessorsCompleteFor(Node node) {
+        return true;
+    }
+
+    public boolean isSuccessorsSuccessfulFor(Node node) {
+        return true;
     }
 
     public void addMember(Node node) {

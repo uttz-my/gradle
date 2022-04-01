@@ -28,12 +28,14 @@ import java.util.function.Consumer;
  * The set of nodes reachable from a particular finalizer node.
  */
 class FinalizerGroup extends HasFinalizers {
-    @Nullable
-    private OrdinalGroup ordinal;
+    private final boolean isReachableFromEntryPoint;
     private final TaskNode node;
     private final Set<Node> members = new LinkedHashSet<>();
+    @Nullable
+    private OrdinalGroup ordinal;
 
     public FinalizerGroup(TaskNode node, NodeGroup fromGroup) {
+        this.isReachableFromEntryPoint = fromGroup.isReachableFromOrdinalGroup();
         this.ordinal = fromGroup.asOrdinal();
         this.node = node;
         this.members.add(node);
@@ -52,6 +54,11 @@ class FinalizerGroup extends HasFinalizers {
     @Override
     public OrdinalGroup asOrdinal() {
         return ordinal;
+    }
+
+    @Override
+    public boolean isReachableFromOrdinalGroup() {
+        return isReachableFromEntryPoint;
     }
 
     @Nullable
@@ -96,5 +103,37 @@ class FinalizerGroup extends HasFinalizers {
         for (Node member : members) {
             visitor.accept(member);
         }
+    }
+
+    @Override
+    public boolean isSuccessorsCompleteFor(Node node) {
+        // If this node is reachable from an entry point and is not the finalizer itself, then it can start at any time
+        if (isReachableFromEntryPoint && node != this.node) {
+            return true;
+        }
+
+        // Otherwise, wait for all finalized nodes to complete
+        for (Node finalized : getFinalizedNodes()) {
+            if (!finalized.isComplete()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public boolean isSuccessorsSuccessfulFor(Node node) {
+        // If this node is reachable from an entry point, it should run even if none of the finalized nodes have executed
+        if (isReachableFromEntryPoint) {
+            return true;
+        }
+
+        // Otherwise, this node can run if any finalized node has executed
+        for (Node finalized : getFinalizedNodes()) {
+            if (finalized.isExecuted()) {
+                return true;
+            }
+        }
+        return false;
     }
 }
