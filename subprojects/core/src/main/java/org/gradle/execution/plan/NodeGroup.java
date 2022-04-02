@@ -17,7 +17,6 @@
 package org.gradle.execution.plan;
 
 import javax.annotation.Nullable;
-import java.util.Collection;
 import java.util.Collections;
 
 /**
@@ -49,7 +48,7 @@ abstract class NodeGroup {
         }
 
         @Override
-        public boolean isReachableFromOrdinalGroup() {
+        public boolean isReachableFromEntryPoint() {
             return false;
         }
     };
@@ -57,7 +56,7 @@ abstract class NodeGroup {
     @Nullable
     public abstract OrdinalGroup asOrdinal();
 
-    public abstract boolean isReachableFromOrdinalGroup();
+    public abstract boolean isReachableFromEntryPoint();
 
     @Nullable
     public FinalizerGroup asFinalizer() {

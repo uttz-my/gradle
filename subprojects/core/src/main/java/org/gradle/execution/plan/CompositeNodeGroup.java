@@ -23,11 +23,10 @@ import java.util.Set;
  * Represents a group of nodes that are reachable from more than one root node.
  */
 public class CompositeNodeGroup extends HasFinalizers {
-    @Nullable
-    private final OrdinalGroup ordinalGroup;
+    private final NodeGroup ordinalGroup;
     private final Set<FinalizerGroup> finalizerGroups;
 
-    public CompositeNodeGroup(@Nullable OrdinalGroup ordinalGroup, Set<FinalizerGroup> finalizerGroups) {
+    public CompositeNodeGroup(NodeGroup ordinalGroup, Set<FinalizerGroup> finalizerGroups) {
         this.ordinalGroup = ordinalGroup;
         this.finalizerGroups = finalizerGroups;
     }
@@ -35,12 +34,12 @@ public class CompositeNodeGroup extends HasFinalizers {
     @Nullable
     @Override
     public OrdinalGroup asOrdinal() {
-        return ordinalGroup;
+        return ordinalGroup.asOrdinal();
     }
 
     @Override
-    public boolean isReachableFromOrdinalGroup() {
-        return true;
+    public boolean isReachableFromEntryPoint() {
+        return ordinalGroup.isReachableFromEntryPoint();
     }
 
     @Override
@@ -60,5 +59,20 @@ public class CompositeNodeGroup extends HasFinalizers {
     @Override
     public Set<FinalizerGroup> getFinalizerGroups() {
         return finalizerGroups;
+    }
+
+    @Override
+    public boolean isSuccessorsCompleteFor(Node node) {
+        if (ordinalGroup.isReachableFromEntryPoint()) {
+            // Reachable from entry point node
+            return true;
+        }
+        for (FinalizerGroup group : finalizerGroups) {
+            // Can run once any of the finalizer groups is ready to run
+            if (group.isSuccessorsSuccessfulFor(node)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

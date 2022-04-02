@@ -130,7 +130,7 @@ public abstract class Node implements Comparable<Node> {
         }
 
         if (group instanceof OrdinalGroup) {
-            setGroup(new CompositeNodeGroup(group.asOrdinal(), finalizers.getFinalizerGroups()));
+            setGroup(new CompositeNodeGroup(group, finalizers.getFinalizerGroups()));
             return;
         }
 
@@ -146,7 +146,7 @@ public abstract class Node implements Comparable<Node> {
         ImmutableSet.Builder<FinalizerGroup> builder = ImmutableSet.builder();
         builder.addAll(currentFinalizers.getFinalizerGroups());
         builder.addAll(finalizers.getFinalizerGroups());
-        setGroup(new CompositeNodeGroup(group.asOrdinal(), builder.build()));
+        setGroup(new CompositeNodeGroup(group, builder.build()));
     }
 
     @Nullable

@@ -35,7 +35,7 @@ class FinalizerGroup extends HasFinalizers {
     private OrdinalGroup ordinal;
 
     public FinalizerGroup(TaskNode node, NodeGroup fromGroup) {
-        this.isReachableFromEntryPoint = fromGroup.isReachableFromOrdinalGroup();
+        this.isReachableFromEntryPoint = fromGroup.isReachableFromEntryPoint();
         this.ordinal = fromGroup.asOrdinal();
         this.node = node;
         this.members.add(node);
@@ -57,7 +57,7 @@ class FinalizerGroup extends HasFinalizers {
     }
 
     @Override
-    public boolean isReachableFromOrdinalGroup() {
+    public boolean isReachableFromEntryPoint() {
         return isReachableFromEntryPoint;
     }
 

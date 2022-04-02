@@ -40,7 +40,7 @@ public class OrdinalGroup extends NodeGroup {
     }
 
     @Override
-    public boolean isReachableFromOrdinalGroup() {
+    public boolean isReachableFromEntryPoint() {
         return true;
     }
 
