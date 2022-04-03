@@ -244,6 +244,7 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
             finalizer.updateGroupOfFinalizer();
             updateDependenciesOfFinalizer(finalizer, new HashSet<>());
         }
+        finalizers.clear();
 
         LinkedList<NodeInVisitingSegment> nodeQueue = newLinkedList();
         int visitingSegmentCounter = 0;
@@ -607,6 +608,7 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
         List<ResourceLock> resources = new ArrayList<>();
         Iterator<Node> iterator = Iterators.concat(priorityNodes.iterator(), executionQueue.iterator());
         boolean foundReadyNode = false;
+        boolean skippedNode = false;
         while (iterator.hasNext()) {
             Node node = iterator.next();
             if (node.allDependenciesComplete()) {
@@ -614,6 +616,7 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
                     // Cannot execute this node due to failed dependencies - skip it
                     node.skipExecution(this::recordNodeCompleted);
                     iterator.remove();
+                    skippedNode = true;
                     continue;
                 }
 
@@ -659,6 +662,10 @@ public class DefaultExecutionPlan implements ExecutionPlan, WorkSource<Node> {
         maybeNodesSelectable = false;
         if (executionQueue.isEmpty()) {
             return Selection.noMoreWorkToStart();
+        } else if (skippedNode) {
+            // Skipped some nodes, which may invalidate some earlier nodes (for example a shared dependency of multiple finalizers when all finalizers are skipped), so start again
+            maybeNodesSelectable = true;
+            return selectNext();
         } else {
             // Some tasks are yet to start
             // - they are ready to execute but cannot acquire the resources they need to start

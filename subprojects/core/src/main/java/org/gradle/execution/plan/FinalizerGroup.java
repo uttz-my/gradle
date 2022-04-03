@@ -28,22 +28,36 @@ import java.util.function.Consumer;
  * The set of nodes reachable from a particular finalizer node.
  */
 class FinalizerGroup extends HasFinalizers {
-    private final boolean isReachableFromEntryPoint;
     private final TaskNode node;
+    private NodeGroup delegate;
     private final Set<Node> members = new LinkedHashSet<>();
     @Nullable
     private OrdinalGroup ordinal;
 
-    public FinalizerGroup(TaskNode node, NodeGroup fromGroup) {
-        this.isReachableFromEntryPoint = fromGroup.isReachableFromEntryPoint();
-        this.ordinal = fromGroup.asOrdinal();
+    public FinalizerGroup(TaskNode node, NodeGroup delegate) {
+        this.ordinal = delegate.asOrdinal();
         this.node = node;
+        this.delegate = delegate;
         this.members.add(node);
     }
 
     @Override
     public String toString() {
         return "finalizer in " + ordinal;
+    }
+
+    public TaskNode getNode() {
+        return node;
+    }
+
+    public void setDelegate(NodeGroup delegate) {
+        for (Node member : members) {
+            this.delegate.removeMember(member);
+        }
+        this.delegate = delegate;
+        for (Node member : members) {
+            delegate.addMember(member);
+        }
     }
 
     public Collection<Node> getFinalizedNodes() {
@@ -58,7 +72,7 @@ class FinalizerGroup extends HasFinalizers {
 
     @Override
     public boolean isReachableFromEntryPoint() {
-        return isReachableFromEntryPoint;
+        return delegate.isReachableFromEntryPoint();
     }
 
     @Nullable
@@ -92,11 +106,13 @@ class FinalizerGroup extends HasFinalizers {
     @Override
     public void addMember(Node node) {
         members.add(node);
+        delegate.addMember(node);
     }
 
     @Override
     public void removeMember(Node node) {
         members.remove(node);
+        delegate.removeMember(node);
     }
 
     public void visitAllMembers(Consumer<Node> visitor) {
@@ -108,23 +124,30 @@ class FinalizerGroup extends HasFinalizers {
     @Override
     public boolean isSuccessorsCompleteFor(Node node) {
         // If this node is reachable from an entry point and is not the finalizer itself, then it can start at any time
-        if (isReachableFromEntryPoint && node != this.node) {
+        if (delegate.isReachableFromEntryPoint() && node != this.node) {
             return true;
         }
 
         // Otherwise, wait for all finalized nodes to complete
+        boolean isAnyExecuted = false;
         for (Node finalized : getFinalizedNodes()) {
             if (!finalized.isComplete()) {
                 return false;
             }
+            isAnyExecuted |= finalized.isExecuted();
         }
-        return true;
+        if (isAnyExecuted) {
+            return true;
+        }
+
+        // All finalized nodes are complete but none executed, so wait for upstream finalizers
+        return delegate.isSuccessorsCompleteFor(node);
     }
 
     @Override
     public boolean isSuccessorsSuccessfulFor(Node node) {
         // If this node is reachable from an entry point, it should run even if none of the finalized nodes have executed
-        if (isReachableFromEntryPoint) {
+        if (delegate.isReachableFromEntryPoint()) {
             return true;
         }
 
@@ -134,6 +157,6 @@ class FinalizerGroup extends HasFinalizers {
                 return true;
             }
         }
-        return false;
+        return delegate instanceof HasFinalizers && delegate.isSuccessorsSuccessfulFor(node);
     }
 }

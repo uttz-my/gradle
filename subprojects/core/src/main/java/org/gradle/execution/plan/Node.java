@@ -117,6 +117,7 @@ public abstract class Node implements Comparable<Node> {
         // - in the "default" group (ie not-a-group) -> use the candidate
         // - already a member of the given group -> ignore
         // - in an ordinal group -> merge with the candidate
+        // - a finalizer -> merge with the candidate
         // - in multiple finalizer groups -> merge with the candidate
         // - in an ordinal group and one or more finalizer groups -> merge with the candidate
 
@@ -134,7 +135,8 @@ public abstract class Node implements Comparable<Node> {
             return;
         }
 
-        if (!getFinalizingSuccessors().isEmpty()) {
+        if (group instanceof FinalizerGroup && ((FinalizerGroup) group).getNode() == this) {
+            ((FinalizerGroup)group).setDelegate(finalizers);
             return;
         }
 

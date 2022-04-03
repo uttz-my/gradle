@@ -312,15 +312,20 @@ class DefaultExecutionPlanParallelTest extends AbstractExecutionPlanSpec {
         Task finalizer2 = task("finalizer2", type: Async, dependsOn: [finalizerDep2])
         Task broken = task("broken", type: Async, failure: new RuntimeException())
         Task a = task("a", type: Async, finalizedBy: [finalizer1], dependsOn: [broken])
-        Task b = task("b", type: Async, finalizedBy: [finalizer2])
+        Task b = task("b", type: Async, finalizedBy: [finalizer2], dependsOn: [a])
 
         when:
+        executionPlan.setContinueOnFailure(continueOnFailure)
         addToGraphAndPopulate(a, b)
 
         then:
         executionPlan.tasks as List == [broken, a, finalizerDepDep, finalizerDep1, finalizer1, b, finalizerDep2, finalizer2]
         assertNextTaskReady(broken)
-        assertAllWorkComplete()
+        assertAllWorkComplete(continueOnFailure)
+
+        where:
+//        continueOnFailure << [true, false]
+        continueOnFailure << [true]
     }
 
     def "finalizers do not run when shared dependency does not run"() {
@@ -334,7 +339,7 @@ class DefaultExecutionPlanParallelTest extends AbstractExecutionPlanSpec {
         Task b = task("b", type: Async, finalizedBy: [finalizer2])
 
         when:
-        executionPlan.setContinueOnFailure(true)
+        executionPlan.setContinueOnFailure(continueOnFailure)
         addToGraphAndPopulate(a, b)
 
         then:
@@ -342,6 +347,9 @@ class DefaultExecutionPlanParallelTest extends AbstractExecutionPlanSpec {
         assertTasksReady(a, b)
         assertSingleTaskReady(broken)
         assertAllWorkComplete(true)
+
+        where:
+        continueOnFailure << [true, false]
     }
 
     def "finalizer that is dependency of another finalizer runs when the task it finalizes is complete"() {
@@ -364,6 +372,54 @@ class DefaultExecutionPlanParallelTest extends AbstractExecutionPlanSpec {
         assertSingleTaskReady(finalizerDep2)
         assertLastTaskReady(finalizer2)
         assertAllWorkComplete()
+    }
+
+    def "finalizer that is dependency of another finalizer runs when the task it finalizes does not run"() {
+        given:
+        Task finalizerDep1 = task("finalizerDep1", type: Async)
+        Task finalizer1 = task("finalizer1", type: Async, dependsOn: [finalizerDep1])
+        Task finalizerDep2 = task("finalizerDep2", type: Async, dependsOn: [finalizer1])
+        Task finalizer2 = task("finalizer2", type: Async, dependsOn: [finalizerDep2])
+        Task broken = task("broken", type: Async, failure: new RuntimeException())
+        Task a = task("a", type: Async, finalizedBy: [finalizer1], dependsOn: [broken])
+        Task b = task("b", type: Async, finalizedBy: [finalizer2])
+
+        when:
+        executionPlan.setContinueOnFailure(true)
+        addToGraphAndPopulate(a, b)
+
+        then:
+        executionPlan.tasks as List == [broken, a, finalizerDep1, finalizer1, b, finalizerDep2, finalizer2]
+        assertNextTaskReady(broken)
+        assertSingleTaskReady(b)
+        assertSingleTaskReady(finalizerDep1)
+        assertSingleTaskReady(finalizer1)
+        assertSingleTaskReady(finalizerDep2)
+        assertLastTaskReady(finalizer2)
+        assertAllWorkComplete()
+    }
+
+    def "finalizer that is dependency of another finalizer does not run when finalized tasks do not run"() {
+        given:
+        Task finalizerDep1 = task("finalizerDep1", type: Async)
+        Task finalizer1 = task("finalizer1", type: Async, dependsOn: [finalizerDep1])
+        Task finalizerDep2 = task("finalizerDep2", type: Async, dependsOn: [finalizer1])
+        Task finalizer2 = task("finalizer2", type: Async, dependsOn: [finalizerDep2])
+        Task broken = task("broken", type: Async, failure: new RuntimeException())
+        Task a = task("a", type: Async, finalizedBy: [finalizer1], dependsOn: [broken])
+        Task b = task("b", type: Async, finalizedBy: [finalizer2], dependsOn: [a])
+
+        when:
+        executionPlan.setContinueOnFailure(continueOnFailure)
+        addToGraphAndPopulate(a, b)
+
+        then:
+        executionPlan.tasks as List == [broken, a, finalizerDep1, finalizer1, b, finalizerDep2, finalizer2]
+        assertSingleTaskReady(broken)
+        assertAllWorkComplete(continueOnFailure)
+
+        where:
+        continueOnFailure << [true, false]
     }
 
     def "finalizer dependency runs in parallel with finalized task when that dependency is also an entry point task"() {

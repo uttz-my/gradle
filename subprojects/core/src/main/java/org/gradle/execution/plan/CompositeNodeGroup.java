@@ -64,11 +64,31 @@ public class CompositeNodeGroup extends HasFinalizers {
     @Override
     public boolean isSuccessorsCompleteFor(Node node) {
         if (ordinalGroup.isReachableFromEntryPoint()) {
-            // Reachable from entry point node
+            // Reachable from entry point node, can run at any time
+            return true;
+        }
+        boolean allComplete = true;
+        for (FinalizerGroup group : finalizerGroups) {
+            boolean complete = group.isSuccessorsCompleteFor(node);
+            if (!complete) {
+                allComplete = false;
+            }
+            // Can run once any of the finalizer groups is ready to run
+            if (complete && group.isSuccessorsSuccessfulFor(node)) {
+                return true;
+            }
+        }
+        // No finalizer group is ready to run, and either all of them have failed or some are not yet complete
+        return allComplete;
+    }
+
+    @Override
+    public boolean isSuccessorsSuccessfulFor(Node node) {
+        if (ordinalGroup.isReachableFromEntryPoint()) {
+            // Reachable from entry point node, can run
             return true;
         }
         for (FinalizerGroup group : finalizerGroups) {
-            // Can run once any of the finalizer groups is ready to run
             if (group.isSuccessorsSuccessfulFor(node)) {
                 return true;
             }
