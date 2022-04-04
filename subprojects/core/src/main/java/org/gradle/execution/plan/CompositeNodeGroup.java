@@ -37,6 +37,10 @@ public class CompositeNodeGroup extends HasFinalizers {
         return ordinalGroup.asOrdinal();
     }
 
+    public NodeGroup getOrdinalGroup() {
+        return ordinalGroup;
+    }
+
     @Override
     public boolean isReachableFromEntryPoint() {
         return ordinalGroup.isReachableFromEntryPoint();

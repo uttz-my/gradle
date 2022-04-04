@@ -324,8 +324,7 @@ class DefaultExecutionPlanParallelTest extends AbstractExecutionPlanSpec {
         assertAllWorkComplete(continueOnFailure)
 
         where:
-//        continueOnFailure << [true, false]
-        continueOnFailure << [true]
+        continueOnFailure << [true, false]
     }
 
     def "finalizers do not run when shared dependency does not run"() {
@@ -424,75 +423,37 @@ class DefaultExecutionPlanParallelTest extends AbstractExecutionPlanSpec {
 
     def "finalizer dependency runs in parallel with finalized task when that dependency is also an entry point task"() {
         given:
-        Task finalizerDep = task("finalizerDep", type: Async)
-        Task finalizer = task("finalizer", dependsOn: [finalizerDep])
+        Task finalizerDepDep = task("finalizerDepDep", type: Async)
+        Task finalizerDep = task("finalizerDep", type: Async, dependsOn: [finalizerDepDep])
+        Task finalizer = task("finalizer", type: Async, dependsOn: [finalizerDep])
         Task a = task("a", type: Async, finalizedBy: [finalizer])
 
         when:
         addToGraphAndPopulate(finalizerDep, a)
-        def node1 = selectNextTaskNode()
-        def node2 = selectNextTaskNode()
 
         then:
-        node1.task == finalizerDep
-        node2.task == a
-        assertNoWorkReadyToStartAfterSelect()
-
-        when:
-        finishedExecuting(node1)
-
-        then:
-        assertNoWorkReadyToStart()
-
-        when:
-        finishedExecuting(node2)
-        def node3 = selectNextTaskNode()
-
-        then:
-        node3.task == finalizer
-        assertNoMoreWorkToStartButNotAllComplete()
-
-        when:
-        finishedExecuting(node3)
-
-        then:
+        executionPlan.tasks as List == [finalizerDepDep, finalizerDep, a, finalizer]
+        assertTasksReady(finalizerDepDep, a)
+        assertSingleTaskReady(finalizerDep)
+        assertLastTaskReady(finalizer)
         assertAllWorkComplete()
     }
 
     def "finalizer dependency runs in parallel with finalized task when that dependency is also a later entry point task"() {
         given:
-        Task finalizerDep = task("finalizerDep", type: Async)
+        Task finalizerDepDep = task("finalizerDepDep", type: Async)
+        Task finalizerDep = task("finalizerDep", type: Async, dependsOn: [finalizerDepDep])
         Task finalizer = task("finalizer", dependsOn: [finalizerDep])
         Task a = task("a", type: Async, finalizedBy: [finalizer])
 
         when:
         addToGraphAndPopulate(a, finalizerDep)
-        def node1 = selectNextTaskNode()
-        def node2 = selectNextTaskNode()
 
         then:
-        node1.task == a
-        node2.task == finalizerDep
-        assertNoWorkReadyToStartAfterSelect()
-
-        when:
-        finishedExecuting(node1)
-
-        then:
-        assertNoWorkReadyToStart()
-
-        when:
-        finishedExecuting(node2)
-        def node3 = selectNextTaskNode()
-
-        then:
-        node3.task == finalizer
-        assertNoMoreWorkToStartButNotAllComplete()
-
-        when:
-        finishedExecuting(node3)
-
-        then:
+        executionPlan.tasks as List == [a, finalizerDepDep, finalizerDep, finalizer]
+        assertTasksReady(a, finalizerDepDep)
+        assertSingleTaskReady(finalizerDep)
+        assertLastTaskReady(finalizer)
         assertAllWorkComplete()
     }
 
@@ -1336,10 +1297,14 @@ class DefaultExecutionPlanParallelTest extends AbstractExecutionPlanSpec {
         finishedExecuting(node)
     }
 
-    void assertSingleTaskReady(Task task) {
+    void assertSingleTaskReady(Task task, boolean needToSelect = true) {
         def node = selectNextTaskNode()
         assert node.task == task
-        assertNoWorkReadyToStartAfterSelect()
+        if (needToSelect) {
+            assertNoWorkReadyToStartAfterSelect()
+        } else {
+            assertNoWorkReadyToStart()
+        }
         finishedExecuting(node)
     }
 

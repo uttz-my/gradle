@@ -27,7 +27,7 @@ import java.util.function.Consumer;
 /**
  * The set of nodes reachable from a particular finalizer node.
  */
-class FinalizerGroup extends HasFinalizers {
+public class FinalizerGroup extends HasFinalizers {
     private final TaskNode node;
     private NodeGroup delegate;
     private final Set<Node> members = new LinkedHashSet<>();

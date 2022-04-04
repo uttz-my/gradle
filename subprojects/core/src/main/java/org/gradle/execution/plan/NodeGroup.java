@@ -34,7 +34,7 @@ import java.util.Collections;
  *
  * <p>The the groups that the node belongs to can affect how the node is scheduled relative to other nodes in the graph.</p>
  */
-abstract class NodeGroup {
+public abstract class NodeGroup {
     public static final NodeGroup DEFAULT_GROUP = new NodeGroup() {
         @Override
         public String toString() {
